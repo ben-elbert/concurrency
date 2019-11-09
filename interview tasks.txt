@@ -1,0 +1,178 @@
+1. complete semaphore example on github - done
+2. asyncio - page 530 - plus example code
+3. debugging using visual studio code -realpython - done
+4. difference between python 2 and 3
+5. debugging multi threaded program in python
+6. generators - done
+7. decorators - done
+8. monkey patch
+-----------------------------------------------------------------------------------
+* logging is threadsafe use it to log mt program
+-----------------------------------------------------------------------------------
+* semaphore to limit number of threads consuming a resource
+-----------------------------------------------------------------------------------
+* how to measure execution time of some python code
+  1. start = time.time()
+  2. end = time.time() - start
+  
+  3. profiler - python -m scripy.py -> this will run the program with the profiler
+                                       turned on, and will generate an output
+                                       of all the times we entered the function
+                                       and the times it took to run the function
+-----------------------------------------------------------------------------------
+* Iterators
+An iterator is nothing more than a container object that implements the iterator protocol.
+This protocol consists of two methods:
+__next__: This returns the next item of the container
+__iter__: This returns the iterator itself
+-----------------------------------------------------------------------------------
+Generators vs Coroutines -> generators generate data and coroutine consumes data, this is the main difference
+* Generators - iterators are the base for generators
+Generators provide an elegant way to write simple and efficient code for functions that
+return a sequence of elements. Based on the yield statement, they allow you to pause a
+function and return an intermediate result. The function saves its execution context and can
+be resumed later, if necessary.
+
+def fibonacci():
+	a, b = 0, 1
+	while True:
+		yield b
+		a, b = b, a + b
+
+You can retrieve new values from generators as if they were iterators, so using
+the next() function or for loops:
+>>> fib = fibonacci()
+>>> next(fib)
+1
+>>> next(fib)
+1
+>>> next(fib)
+2
+>>> [next(fib) for i in range(10)]
+[3, 5, 8, 13, 21, 34, 55, 89, 144, 233]
+A common use case is to stream data
+buffers with generators (for example, from files). They can be paused, resumed, and
+stopped whenever necessary at any stage of the data processing pipeline without any need
+to load whole datasets into the program's memory.
+
+generator method, named send():
+	def psychologist():
+		print('Please tell me your problems')
+		while True:
+		answer = (yield)
+		if answer is not None:
+			if answer.endswith('?'):
+				print("Don't ask yourself too much questions")
+			elif 'good' in answer:
+				print("Ahh that's good, go on")
+			elif 'bad' in answer:
+				print("Don't be so negative")
+
+Here is an example session with our psychologist() function:
+>>> free = psychologist()
+>>> next(free)
+Please tell me your problems
+>>> free.send('I feel bad')
+Don't be so negative
+>>> free.send("Why I shouldn't ?")
+Don't ask yourself too much questions
+>>> free.send("ok then i should find what is good for me")
+Ahh that's good, go on
+-----------------------------------------------------------------------------------
+Context managers – the with statement
+The try...finally statement is useful to ensure some cleanup code is run, even if an
+error is raised. There are many use cases for this, such as the following:
+Closing a file
+Releasing a lock
+Making a temporary code patch
+Running protected code in a special environment
+The with statement factors out these use cases by providing a simple way to wrap a block
+of code with methods defined within the context manager.
+-------------------------------------------------------------------------------------
+Macro-profiling
+Macro-profiling is done by running the application in a special mode, where the interpreter
+is instrumented to collect statistics on the code usage. Python provides several tools for this,
+including the following:
+profile: This is a pure Python implementation
+cProfile: This is a C implementation that provides the same interface as that of
+the profile tool, but has less overhead
+
+we can run the profiler from inside ipython
+main is a function that runs other functions
+>>> import cProfile
+>>> from myapp import main
+>>> profiler = cProfile.Profile()
+>>> profiler.runcall(main)
+>>> profiler.print_stats()
+
+we can use the pstat module that can read the stats file Cprofile is generating
+and then we can read all sorts of information, like how many calls for a specific function
+or time in a specific function
+>>> import pstats
+>>> import cProfile
+>>> from myapp import main
+>>> cProfile.run('main()', 'myapp.stats')
+>>> stats = pstats.Stats('myapp.stats')
+>>> stats.total_calls
+1208
+>>> stats.sort_stats('time').print_stats(3)
+>>> stats.print_callees('medium')
+
+we can decorate a function with a profiler in order to print in runtime the 
+stats of the function
+def profile(column='time', list=3):
+	def parametrized_decorator(function):
+		def decorated(*args, **kw):
+			s = tempfile.mktemp()
+			profiler = cProfile.Profile()
+			profiler.runcall(function, *args, **kw)
+			profiler.dump_stats(s)
+			p = pstats.Stats(s)
+			print("=" * 5, f"{function.__name__}() profile", "=" * 5)
+			p.sort_stats(column).print_stats(list)
+		return decorated
+	return parametrized_decorator
+
+heavy = profile()(heavy)
+@profile
+def heavy():
+	print("BEN")
+
+Using timeit:
+import timeit
+code_to_test = """
+a = range(100000)
+b = []
+for i in a:
+    b.append(i*2)
+"""
+elapsed_time = timeit.timeit(code_to_test, number=100)/100
+print(elapsed_time)
+-----------------------------------------------------------------------------------
+Monkey patching:
+
+It's simply the dynamic replacement of attributes at runtime.
+
+For instance, consider a class that has a method get_data. This method does an external lookup (on a database or web API, for example), 
+and various other methods in the class call it. However, in a unit test, you don't want to depend on the external data source - 
+so you dynamically replace the get_data method with a stub that returns some fixed data.
+Because Python classes are mutable, and methods are just attributes of the class, you can do this as much as you like - and, 
+in fact, you can even replace classes and functions in a module in exactly the same way.
+
+A simple example looks like this:
+
+from SomeOtherProduct.SomeModule import SomeClass
+
+def speak(self):
+    return "ook ook eee eee eee!"
+
+SomeClass.speak = speak
+-----------------------------------------------------------------------------------
+* asyncio, when we have to do a cpu intensive work:
+So, when something simply does not fit your asynchronous application, use a piece of code
+that will defer it to a separate thread or process. You can pretend that this was a coroutine
+and release control to the event loop using await. You will eventually process results when
+they are ready. Fortunately for us, the Python standard library provides the
+concurrent.futures module, which is also integrated with the asyncio module. These
+two modules together allow you to schedule blocking functions to execute in threads or
+additional processes, as if they were asynchronous non-blocking coroutines.
