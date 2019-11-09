@@ -7,7 +7,6 @@ from urllib.request import urlretrieve
 from queue import Queue
 from threading import Thread, Lock
 import multiprocessing
-
 import PIL
 from PIL import Image
 
@@ -19,10 +18,22 @@ class ThumbnailMakerService(object):
         self.home_dir = home_dir
         self.input_dir = self.home_dir + os.path.sep + 'incoming'
         self.output_dir = self.home_dir + os.path.sep + 'outgoing'
+        # Joinable queue, is a replacement for the regluar queue
+        # it provides the task_done and join methods which 
+        # standard queue doesn't support
         self.img_queue = multiprocessing.JoinableQueue()
         self.dl_size = 0
+        # we decided to use the Value shared memory, that the multiprocess offers
+        # but we could also use the queue, each process would update the queue
+        # and then the parent process would aggregate all the sizes and output it
+        # multiprocessing gives us a way to share memory between processes
+        # 1. manager process - if we needed to share a list of items then this would be the better choice
+        # 2. shared memory - because we only need to share one value there is no need for the manager process
+        # we can use the Value and Array which takes a ctype
         self.resized_size = multiprocessing.Value('i', 0)
 
+    # now we have to pass as arguments the dl_queue and dl_size_lock,
+    # this is because they are not picklable, so we could spwan a new process
     def download_image(self, dl_queue, dl_size_lock):
         while not dl_queue.empty():
             try:
@@ -85,6 +96,9 @@ class ThumbnailMakerService(object):
                     out_filepath = self.output_dir + os.path.sep + new_filename
                     img.save(out_filepath)
 
+                    # because we are doing two atomic operations, the internal Value lock is only promise to make
+                    # one operation atomic, so we need to lock by ourselfes in order to avoid races
+                    # we are using the internal RLock that the shared memory has
                     with self.resized_size.get_lock():
                         self.resized_size.value += os.path.getsize(out_filepath)
 
@@ -116,6 +130,8 @@ class ThumbnailMakerService(object):
             p.start()
 
         dl_queue.join()
+        # in order to not terminate only the process that will consume a one none message
+        # we will put poison pills as many processes that we have
         for _ in range(num_processes):
             self.img_queue.put(None)
 
